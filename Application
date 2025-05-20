@@ -1,0 +1,232 @@
+--Services
+local DataStoreService = game:GetService("DataStoreService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+--Data Store
+local PetsDS = DataStoreService:GetDataStore("Pet")
+local CoinsDS = DataStoreService:GetDataStore("Coins")
+
+--Runtime tables
+local collectingCoin = {}
+local damageConns = {}
+
+--Configurations
+local petPowers = {
+	Cat = 1,
+	Wolf = 2,
+	Dragon = 5,
+	Phoenix = 10
+}
+local coinRewards = {
+	Coin = 5,
+	CoinStack = 10,
+	CoinPile = 20
+}
+
+--Folders
+local coinSpawns = workspace:WaitForChild("Spawns")
+local clickables = workspace:WaitForChild("Clickables")
+
+--Helper function to safely load data from a certain data store. if it fails or nil, it uses fallback
+local function LoadData(ds, key, fallback)
+	local success, result = pcall(function()
+		return ds:GetAsync(key)
+	end)
+	if success and result then
+		return result
+	else
+		return fallback
+	end
+end
+
+--Helper function to safely save data to a certain data store
+local function SaveData(ds, key, value)
+	pcall(function()
+		ds:SetAsync(key, value)
+	end)
+end
+
+--Helper function to create a pet for player characters
+local function CreatePetForCharacter(player, petName)
+	local petsFolder = ReplicatedStorage:WaitForChild("Pets")
+	local petModel = petsFolder:FindFirstChild(petName)
+	if petModel then
+		local clone = petModel:Clone()
+		clone.Parent = player.Character
+		clone.Name = player.Name .. "PET"
+		return clone
+	end
+	return nil
+end
+
+--Helper function for pets to follow players
+local function PlayPetFollowTween(petModel, targetCFrame)
+	local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
+	local tween = TweenService:Create(petModel.PrimaryPart, tweenInfo, {CFrame = targetCFrame})
+	tween:Play()
+	return tween
+end
+
+--Helper function to stop pets from collecting coins
+local function StopCollecting(player, coins)
+	local userId = player.UserId
+	if damageConns[userId] then
+		damageConns[userId]:Disconnect()
+		damageConns[userId] = nil
+	end
+	collectingCoin[userId] = nil
+	if coins and coins.Parent then
+		coins:SetAttribute("Owner", nil)
+	end
+end
+
+--Helper function to update coin's "health" and gives reward if the coin is destroyed
+local function UpdateCoinHealthAndReward(coins)
+	if coins.Health.Value <= 0 then
+		local ownerId = coins:GetAttribute("Owner")
+		local player
+		if ownerId then
+			player = Players:GetPlayerByUserId(ownerId)
+		else
+			return
+		end
+		local reward = coinRewards[coins.Name] or 0
+		local spawnPoint = coins.Spawn.Value
+		if spawnPoint then
+			spawnPoint.Occupied.Value = false
+		end
+		coins:Destroy()
+		if player and player:FindFirstChild("Coins") then
+			player.Coins.Value += reward
+		end
+	end
+end
+
+--Helper function to setup coins functionalities
+local function SetupCoin(coins)
+	local clickDetector = coins:FindFirstChildWhichIsA("ClickDetector")
+	if not clickDetector then
+		return
+	end
+	coins:SetAttribute("Owner", nil)
+	coins.Health.Changed:Connect(function()
+		UpdateCoinHealthAndReward(coins)
+	end)
+	clickDetector.MouseClick:Connect(function(player)
+		if coins:GetAttribute("Owner") and coins:GetAttribute("Owner") ~= player.UserId then
+			return
+		end
+		local playerPet = player.Character and player.Character:FindFirstChild(player.Name .. "PET")
+		if not playerPet then
+			return
+		end
+		local display = coins:WaitForChild("Display")
+		local healthText = display:WaitForChild("Health")
+		if not collectingCoin[player.UserId] then
+			collectingCoin[player.UserId] = coins
+			coins:SetAttribute("Owner", player.UserId)
+			healthText.Text = coins.Health.Value
+			display.Enabled = true
+			local lastDamage = 0
+			damageConns[player.UserId] = RunService.Heartbeat:Connect(function(dt)
+				if not coins or not coins.Parent or not coins:GetAttribute("Owner") then
+					StopCollecting(player, coins)
+					return
+				end
+				lastDamage += dt
+				local coinPos = coins.PrimaryPart.Position
+				local petPart = playerPet.PrimaryPart
+				petPart.Position = coinPos + (petPart.CFrame.LookVector * -5)
+				petPart.CFrame = CFrame.new(petPart.Position, coinPos)
+				if lastDamage >= 1 then
+					lastDamage = 0
+					if coins and coins:FindFirstChild("Health") then
+						coins.Health.Value -= petPowers[player.Pet.Value] or 1
+						healthText.Text = coins.Health.Value
+					end
+				end
+			end)
+		else
+			if collectingCoin[player.UserId] == coins then
+				StopCollecting(player, coins)
+				display.Enabled = false
+			end
+		end
+	end)
+end
+
+--Helper function to bring coins to the world
+local function SpawnCoin()
+	for _, spawnPoint in ipairs(coinSpawns:GetChildren()) do
+		if spawnPoint:IsA("BasePart") and not spawnPoint.Occupied.Value then
+			spawnPoint.Occupied.Value = true
+			local coinTypes = {"Coin", "CoinPile", "CoinStack"}
+			local coinName = coinTypes[math.random(1, #coinTypes)]
+			local coinTemplate = ReplicatedStorage.Coins:FindFirstChild(coinName)
+			if coinTemplate then
+				local newCoin = coinTemplate:Clone()
+				newCoin.Parent = clickables
+				newCoin:SetPrimaryPartCFrame(spawnPoint.CFrame)
+				newCoin.Spawn.Value = spawnPoint
+				SetupCoin(newCoin)
+			end
+			break
+		end
+	end
+end
+
+--Helper function to setup players when a player joins
+local function SetupPlayer(player)
+	local pet = Instance.new("StringValue")
+	pet.Name = "Pet"
+	pet.Value = LoadData(PetsDS, player.UserId, "Cat")
+	pet.Parent = player
+	pet.Changed:Connect(function()
+		SaveData(PetsDS, player.UserId, pet.Value)
+	end)
+	player.CharacterAdded:Connect(function(character)
+		local petModel = CreatePetForCharacter(player, pet.Value)
+		if not petModel then return end
+		local root = character:WaitForChild("HumanoidRootPart")
+		local tweenPlaying = false
+		local function playTween()
+			tweenPlaying = true
+			local tween = PlayPetFollowTween(petModel, root.CFrame * CFrame.new(0, 0, 5))
+			tween.Completed:Wait()
+			tweenPlaying = false
+		end
+		RunService.Heartbeat:Connect(function()
+			if not tweenPlaying and not collectingCoin[player.UserId] then
+				playTween()
+			end
+		end)
+	end)
+	local playerGui = player:WaitForChild("PlayerGui")
+	local screenGui = playerGui:WaitForChild("ScreenGui")
+	local coinLabel = screenGui:WaitForChild("Coins")
+	local coinsValue = Instance.new("NumberValue")
+	coinsValue.Name = "Coins"
+	coinsValue.Value = LoadData(CoinsDS, player.UserId, 0)
+	coinsValue.Parent = player
+	coinLabel.Text = coinsValue.Value
+	coinsValue.Changed:Connect(function()
+		SaveData(CoinsDS, player.UserId, coinsValue.Value)
+		coinLabel.Text = coinsValue.Value
+	end)
+end
+
+--Detects added players and fires the function to set them up
+Players.PlayerAdded:Connect(function(player)
+	SetupPlayer(player)
+end)
+
+--Loop to constantly fire the function to spawn coins
+task.spawn(function()
+	while true do
+		task.wait(5)
+		SpawnCoin()
+	end
+end)
