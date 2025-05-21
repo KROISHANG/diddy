@@ -97,6 +97,10 @@ local function UpdateCoinHealthAndReward(coin: Instance)
 	end
 end
 
+local function GetPetPower(petName: string): number
+	return petPowers[petName] or 1
+end
+
 --// Helper: Setup coin logic
 local function SetupCoin(coin: Model)
 	local clickDetector = coin:FindFirstChildWhichIsA("ClickDetector")
@@ -145,7 +149,7 @@ local function SetupCoin(coin: Model)
 				if lastDamage >= 1 then
 					lastDamage = 0
 					if coin:FindFirstChild("Health") then
-						coin.Health.Value -= petPowers[player.Pet.Value] or 1 -- Deal damage
+						coin.Health.Value -= GetPetPower(player.Pet.Value) -- Deal damage
 						healthText.Text = tostring(coin.Health.Value)
 					end
 				end
