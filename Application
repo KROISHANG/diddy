@@ -122,6 +122,11 @@ local function SetupCoin(coin: Model)
 			coin:SetAttribute("Owner", player.UserId) -- Set owner
 			display.Enabled = true -- Show health
 			healthText.Text = tostring(coin.Health.Value)
+			
+			local sound = coin:FindFirstChild("ClickSound")
+			if sound then 
+				sound:Play() 
+			end
 
 			local lastDamage = 0
 			damageConns[player.UserId] = RunService.Heartbeat:Connect(function(dt)
