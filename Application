@@ -201,7 +201,8 @@ local function SetupPlayer(player: Player)
 				busy = true
 				local tween = PlayPetFollowTween(model, root.CFrame * CFrame.new(0, 0, 5)) -- Pet follows player
 				tween:Play()
-				tween.Completed:Wait()
+				tween.Completed:Once()
+				tween:Destroy()
 				busy = false
 			end
 		end)
