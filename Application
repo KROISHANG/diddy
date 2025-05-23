@@ -142,7 +142,7 @@ local function SetupCoin(coin: Model)
 		-- player must have a pet to collect coins
 		local pet = player.Character and player.Character:FindFirstChild(player.Name .. "PET")
 		if not pet then return end
-		
+
 		-- the coin's health display indicators
 		local display = coin:WaitForChild("Display")
 		local healthText = display:WaitForChild("Health")
@@ -159,11 +159,9 @@ local function SetupCoin(coin: Model)
 				sound:Play() -- plays audio to improve gameplay experience
 			end
 
-			-- position pet 5 studs behind coin to face it, making it visually damaging
 			local coinPos = coin.PrimaryPart.Position
 			local petPart = pet.PrimaryPart
 			local offsetPos = coinPos + (petPart.CFrame.LookVector * -5)
-			petPart.CFrame = CFrame.new(offsetPos, coinPos)
 
 			local lastDamage = 0
 			-- setup damage loop using heartbeat for consistent timing
@@ -174,6 +172,8 @@ local function SetupCoin(coin: Model)
 					return
 				end
 
+				-- position pet 5 studs behind coin to face it, making it visually damaging
+				petPart.CFrame = CFrame.new(offsetPos, coinPos)
 				lastDamage += dt
 
 				if lastDamage >= 1 then -- damage dealt once per second to balance gameplay progressing
@@ -240,16 +240,17 @@ local function SetupPlayer(player: Player)
 		local root = character:WaitForChild("HumanoidRootPart")
 		local busy = false
 
-		-- use tween to smoothly move pet near the player when not busy collecting coins to represent it following the player
-		local tween = PlayPetFollowTween(model, root.CFrame * CFrame.new(0, 0, 5))
-
 		-- connect to heartbeat to update pet position every frame, but only if pet is not moving
 		RunService.Heartbeat:Connect(function()
 			if not busy and not collectingCoin[player.UserId] then
 				busy = true
+				-- use tween to smoothly move pet near the player when not busy collecting coins to represent it following the player
+				local tween = PlayPetFollowTween(model, root.CFrame * CFrame.new(0, 0, 5))
 				tween:Play()
-				tween.Completed:Once()
+				tween.Completed:Wait()
 				busy = false
+				tween:Destroy()
+				-- destroy tween immediately after finished to prevent memory leaks
 			end
 		end)
 	end)
