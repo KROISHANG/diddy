@@ -113,13 +113,13 @@ local function UpdateCoinHealthAndReward(coin: Instance)
 	end
 end
 
--- returns the damage value of the pet by name, defaulting to 1 if unknown
--- this design makes it easy to balance and add new pets in the future
+-- // returns the damage value of the pet by name, defaulting to 1 if unknown
+-- this function makes it easier to balance and add new pets in the future
 local function GetPetPower(petName: string): number
 	return petPowers[petName] or 1
 end
 
--- sets up interaction and damage logic for each coin
+-- // sets up interaction and damage logic for each coin
 -- uses clickdetector to let players to interact only when no one else owns/is damaging the coin
 -- starts a damage loop which reduces coin health as time passes when collecting
 -- positions pet in front of the coin to visually represent the pet is the one collecting the coins
@@ -193,7 +193,7 @@ local function SetupCoin(coin: Model)
 	end)
 end
 
--- attempts to spawn one coin per call at a free spawn location
+-- // attempts to spawn one coin per call at a free spawn location
 -- randomly selects coin type to add variety in rewards and gameplay experience
 -- using "occupied" attribute prevents coin stacking at the same location
 -- only spawns one coin per call to keep game balanced and not overwhelming
@@ -217,7 +217,7 @@ local function SpawnCoin()
 	end
 end
 
--- sets player data and setup their character and gui on join
+-- // sets player data and setup their character and gui on join
 -- loads saved pet data and coin amount to keep player progress
 -- listens for pet changes to save any upgrades or changes immediately
 local function SetupPlayer(player: Player)
@@ -271,10 +271,10 @@ local function SetupPlayer(player: Player)
 	end)
 end
 
--- when player joins, set up their data and event handlers
+-- // when player joins, set up their data and event handlers
 Players.PlayerAdded:Connect(SetupPlayer)
 
--- when player leaves, clean up connections to prevent memory leaks
+-- // when player leaves, clean up connections to prevent memory leaks
 Players.PlayerRemoving:Connect(function(player)
 	local userId = player.UserId
 	if damageConns[userId] then
@@ -284,7 +284,7 @@ Players.PlayerRemoving:Connect(function(player)
 	collectingCoin[userId] = nil
 end)
 
--- run a background loop that tries to spawn coins every 5 seconds
+-- // run a background loop that tries to spawn coins every 5 seconds
 task.spawn(function()
 	while true do
 		task.wait(5)
