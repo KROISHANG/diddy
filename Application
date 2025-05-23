@@ -83,7 +83,7 @@ local function StopCollecting(player: Player, coin: Instance?)
 		damageConns[userId] = nil
 	end
 	collectingCoin[userId] = nil
-	if coin and coin:IsDescendantOf(workspace) then
+	if coin then
 		coin:SetAttribute("Owner", nil) -- remove ownership to let others claim
 	end
 end
@@ -166,7 +166,7 @@ local function SetupCoin(coin: Model)
 			local lastDamage = 0
 			-- setup damage loop using heartbeat for consistent timing
 			damageConns[player.UserId] = RunService.Heartbeat:Connect(function(dt)
-				if not coin:IsDescendantOf(workspace) or not coin:GetAttribute("Owner") then
+				if not coin or not coin:GetAttribute("Owner") then
 					-- if coin removed or ownership lost, stops the collection
 					StopCollecting(player, coin)
 					return
